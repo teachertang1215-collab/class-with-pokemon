@@ -263,6 +263,11 @@
     let currentClassId = "class_default";
     let classList = [{id:"class_default", name:"默认班级"}];
     let classData = { students:[], rules:JSON.parse(JSON.stringify(DEFAULT_CONFIG.rules)), levels:[...DEFAULT_CONFIG.levels], shop:[...DEFAULT_CONFIG.shop], logs:[] }; 
+    let classDataMap = {}; // 内存中缓存所有班级的数据，切换/新建班级时使用，避免被云端旧数据覆盖
+
+    function freshClassData() {
+        return { students:[], rules:JSON.parse(JSON.stringify(DEFAULT_CONFIG.rules)), levels:[...DEFAULT_CONFIG.levels], shop:[...DEFAULT_CONFIG.shop], logs:[] };
+    }
 
     let isBatchMode = false;
     let selectedIds = new Set();
@@ -306,10 +311,11 @@
                 const record = result.record;
                 if(record && record.classList) classList = record.classList;
                 if(record && record.currentClassId) currentClassId = record.currentClassId;
-                if(record && record.classDataMap && record.classDataMap[currentClassId]) {
-                    classData = record.classDataMap[currentClassId];
+                if(record && record.classDataMap) {
+                    classDataMap = record.classDataMap;
                 } else if(record && record.classData) {
-                    classData = record.classData;
+                    // 兼容旧格式（只保存了单个班级数据的老版本）
+                    classDataMap = { [currentClassId]: record.classData };
                 }
             }
         } catch(e) {
@@ -318,9 +324,12 @@
             if(savedList) classList = JSON.parse(savedList);
             const savedId = localStorage.getItem('poke_current_class_id');
             if(savedId && classList.find(c=>c.id===savedId)) currentClassId = savedId;
-            const savedData = localStorage.getItem(`poke_data_${currentClassId}`);
-            if(savedData) classData = JSON.parse(savedData);
+            const savedMap = localStorage.getItem('poke_data_map');
+            if(savedMap) classDataMap = JSON.parse(savedMap);
         }
+
+        if(!classDataMap[currentClassId]) classDataMap[currentClassId] = freshClassData();
+        classData = classDataMap[currentClassId];
 
         if(!classData.rules) classData.rules = DEFAULT_CONFIG.rules;
         if(!classData.levels) classData.levels = DEFAULT_CONFIG.levels;
@@ -338,7 +347,9 @@
         const origText = saveBtn ? saveBtn.innerText : "💾 保存";
         if(saveBtn) saveBtn.innerText = "⏳ 保存中...";
 
-        localStorage.setItem(`poke_data_${currentClassId}`, JSON.stringify(classData));
+        classDataMap[currentClassId] = classData;
+
+        localStorage.setItem('poke_data_map', JSON.stringify(classDataMap));
         localStorage.setItem('poke_class_list', JSON.stringify(classList));
         localStorage.setItem('poke_current_class_id', currentClassId);
 
@@ -352,7 +363,7 @@
                 body: JSON.stringify({
                     classList: classList,
                     currentClassId: currentClassId,
-                    classData: classData
+                    classDataMap: classDataMap
                 })
             });
             if(res.ok) {
@@ -372,9 +383,15 @@
     }
 
     function switchClass(id) {
+        classDataMap[currentClassId] = classData; // 先把当前正在编辑的班级数据存回内存
         currentClassId = id;
-        init();
+        if(!classDataMap[currentClassId]) classDataMap[currentClassId] = freshClassData();
+        classData = classDataMap[currentClassId];
+        localStorage.setItem('poke_current_class_id', currentClassId);
         document.getElementById('classModal').style.display = 'none';
+        updateHeader();
+        render();
+        saveData(); // 静默同步到云端，确保新的班级列表和当前选中状态被保存
     }
 
     // === 4. 辅助渲染计算 ===
@@ -931,6 +948,7 @@
         if(!name) return alert("请输入班级名称！");
         const newId = "class_" + Date.now();
         classList.push({id: newId, name: name});
+        document.getElementById('newClassName').value = '';
         switchClass(newId);
     }
 
