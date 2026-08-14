@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班级宝可梦 v12.2 (云端同步版)</title>
+    <style>
+        :root {
+            --primary: #3B4CCA; --secondary: #FFDE00; --success: #67C23A; --danger: #F56C6C;
+            --purple: #9b59b6; --teal: #16a085; --orange: #e67e22; --bg: #f0f2f5; --card-bg: #ffffff;
+            --c-grass: #7AC74C; --c-fire: #EE8130; --c-water: #6390F0; --c-bug: #A6B91A;
+            --c-normal: #A8A77A; --c-poison: #A33EA1; --c-electric: #F7D02C; --c-ground: #E2BF65;
+            --c-fairy: #D685AD; --c-fighting: #C22E28; --c-psychic: #F95587; --c-rock: #B6A136;
+            --c-ghost: #735797; --c-ice: #96D9D6; --c-dragon: #6F35FC; --c-steel: #B7B7CE;
+        }
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background-color: var(--bg); margin: 0; padding: 20px; padding-bottom: 160px; color: #333; }
+
+        /* 顶部 Header */
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); color: white; padding: 15px 30px; border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+        }
+        .class-selector { background: rgba(255,255,255,0.2); padding: 5px 15px; border-radius: 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s; }
+        .class-selector:hover { background: rgba(255,255,255,0.3); }
+        
+        /* 工具栏 */
+        .toolbar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .search-box { display: flex; align-items: center; border: 2px solid #ddd; border-radius: 8px; padding: 5px 10px; flex-grow: 1; max-width: 200px; }
+        .search-box input { border: none; outline: none; font-size: 14px; width: 100%; }
+        .btn { border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; transition: all 0.2s; display: flex; align-items: center; gap: 5px; font-size: 13px; }
+        .btn:hover { transform: translateY(-2px); opacity: 0.9; }
+        .btn:active { transform: scale(0.96); }
+        .btn-blue { background: var(--primary); } .btn-purple { background: var(--purple); } .btn-yellow { background: var(--secondary); color: #333; }
+        .btn-teal { background: var(--teal); } .btn-grey { background: #606266; } .btn-dark { background: #34495e; } .btn-orange { background: var(--orange); }
+        .divider { width: 1px; height: 25px; background: #eee; margin: 0 5px; }
+
+        /* 网格与卡片 */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+        .card { background: var(--card-bg); border-radius: 12px; padding: 15px; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: all 0.2s; border: 2px solid transparent; overflow: hidden; display: flex; flex-direction: column; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        body.batch-mode .card { cursor: pointer; opacity: 0.6; transform: scale(0.98); }
+        body.batch-mode .card.selected { border-color: var(--primary); background-color: #f0f7ff; opacity: 1; transform: scale(1); box-shadow: 0 0 15px rgba(59, 76, 202, 0.2); }
+        .check-mark { position: absolute; top: 10px; right: 10px; font-size: 24px; color: var(--primary); display: none; z-index: 5; background: white; border-radius: 50%; width: 30px; height: 30px; text-align: center; line-height: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .card.selected .check-mark { display: block; animation: bounceIn 0.3s; }
+        @keyframes bounceIn { 0%{transform:scale(0);} 50%{transform:scale(1.2);} 100%{transform:scale(1);} }
+
+        /* 属性条 & 图片 */
+        .card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 6px; }
+        .bg-grass::before { background: var(--c-grass); } .bg-fire::before { background: var(--c-fire); } .bg-water::before { background: var(--c-water); } 
+        .bg-bug::before { background: var(--c-bug); } .bg-normal::before { background: var(--c-normal); } .bg-poison::before { background: var(--c-poison); }
+        .bg-electric::before { background: var(--c-electric); } .bg-ground::before { background: var(--c-ground); } .bg-fairy::before { background: var(--c-fairy); }
+        .bg-fighting::before { background: var(--c-fighting); } .bg-psychic::before { background: var(--c-psychic); } .bg-rock::before { background: var(--c-rock); }
+        .bg-ghost::before { background: var(--c-ghost); } .bg-ice::before { background: var(--c-ice); } .bg-dragon::before { background: var(--c-dragon); } .bg-steel::before { background: var(--c-steel); }
+        
+        .pokemon-area { height: 150px; display: flex; align-items: center; justify-content: center; margin: 10px 0; position: relative;}
+        .pokemon-img { max-height: 100%; max-width: 100%; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1)); transition: transform 0.3s; }
+
+        .info-area { text-align: center; margin-bottom: 5px; }
+        .student-name { font-size: 18px; font-weight: 800; color: #333; }
+        .type-tag { font-size: 10px; color: #fff; background: #999; padding: 1px 6px; border-radius: 4px; text-transform: uppercase;}
+        .true-name { font-size: 12px; font-weight: bold; color: #555; background: #f0f2f5; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-top: 4px; }
+        .exp-container { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-bottom: 5px; }
+        .exp-fill { height: 100%; width: 0%; transition: width 0.5s; border-radius: 5px; background: linear-gradient(90deg, #4facfe, #00f2fe); }
+        .score-row { display: flex; justify-content: space-between; font-size: 12px; color: #666; font-weight: bold; }
+
+        /* 单人操作面板 */
+        .action-toggle-btn { width: 100%; padding: 8px; background: #f8f9fa; border: 1px solid #eee; border-radius: 6px; color: #666; cursor: pointer; margin-top: auto; font-size: 12px; }
+        .action-toggle-btn:hover { background: #eef1f6; color: var(--primary); }
+        .action-panel { display: none; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+        .card.expanded .action-panel { display: block; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .rule-btn { padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; text-align: center; border: 1px solid #eee; background: #fff; transition: all 0.1s; }
+        .rule-btn:active { transform: scale(0.95); }
+        .rule-btn.plus:hover { background: #f0f9eb; color: var(--success); border-color: #c2e7b0; }
+        .rule-btn.minus:hover { background: #fef0f0; color: var(--danger); border-color: #fbc4c4; }
+        .graduate-btn { grid-column: span 2; background: linear-gradient(45deg, #f1c40f, #e67e22); color: #000; font-weight: bold; border:none; margin-top:5px; animation: pulse 2s infinite; }
+
+        /* 批量操作栏 */
+        .batch-bar { 
+            position: fixed; bottom: -200px; left: 0; width: 100%; height: auto;
+            background: white; border-top: 4px solid var(--primary);
+            padding: 15px 20px; display: flex; flex-direction: column; gap: 10px;
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 999; 
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.2); box-sizing: border-box;
+        }
+        .batch-bar.show { bottom: 0; }
+        .batch-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        
+        .batch-actions-scroll { 
+            display: flex; gap: 10px; overflow-x: auto; padding: 5px 0 15px 0; 
+            scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+        }
+        .quick-btn { 
+            flex-shrink: 0; padding: 12px 15px; border-radius: 8px; border: 2px solid #eee; cursor: pointer; font-size: 14px; font-weight: bold; background: #fff;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 90px; transition: 0.1s;
+        }
+        .quick-btn:active { transform: scale(0.95); }
+        .quick-btn.pos { border-color: #c2e7b0; color: var(--success); background: #f0f9eb; }
+        .quick-btn.neg { border-color: #fbc4c4; color: var(--danger); background: #fef0f0; }
+        .quick-btn span { font-size: 11px; font-weight: normal; color: #666; margin-top: 3px; }
+
+        /* 🔐 安全锁屏 */
+        #lockScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #2c3e50, #000);
+            z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: white;
+        }
+        #lockScreen input { padding: 10px; font-size: 18px; border-radius: 5px; border: none; text-align: center; margin: 15px 0; width: 200px; }
+        #lockScreen button { padding: 10px 30px; font-size: 16px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; }
+
+        /* 弹窗通用 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 550px; max-height: 90vh; overflow-y: auto; position: relative; animation: popIn 0.3s; }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* 属性选择器 */
+        .type-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
+        .type-opt { padding: 10px; color: white; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; font-weight: bold; transition: transform 0.2s; }
+        .type-opt:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .bg-c-grass { background: var(--c-grass); } .bg-c-fire { background: var(--c-fire); } .bg-c-water { background: var(--c-water); } .bg-c-bug { background: var(--c-bug); }
+        .bg-c-normal { background: var(--c-normal); } .bg-c-poison { background: var(--c-poison); } .bg-c-electric { background: var(--c-electric); } .bg-c-ground { background: var(--c-ground); }
+        .bg-c-fairy { background: var(--c-fairy); } .bg-c-fighting { background: var(--c-fighting); } .bg-c-psychic { background: var(--c-psychic); } .bg-c-rock { background: var(--c-rock); }
+        .bg-c-ghost { background: var(--c-ghost); } .bg-c-ice { background: var(--c-ice); } .bg-c-dragon { background: var(--c-dragon); } .bg-c-steel { background: var(--c-steel); }
+
+        /* UI组件 */
+        .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 15px; }
+        .shop-item { border: 2px solid #eee; border-radius: 10px; padding: 10px; text-align: center; position: relative;}
+        .shop-del-btn { position: absolute; top:5px; right:5px; background:red; color:white; width:20px; height:20px; border-radius:50%; border:none; cursor:pointer; font-size:12px;}
+        .rank-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .rank-table td, .rank-table th { padding: 8px; border-bottom: 1px solid #eee; }
+        .setting-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; }
+        .setting-input { padding: 5px; border: 1px solid #ddd; width: 80px; }
+        .class-list-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; align-items: center;}
+        
+        /* 📜 历史记录样式 */
+        .log-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .log-item:hover { background: #f9f9f9; }
+        .log-info { flex-grow: 1; }
+        .log-undo-btn { padding: 4px 10px; background: #95a5a6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 10px; }
+        .log-undo-btn:hover { background: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <!-- 🔒 密码锁屏 -->
+    <div id="lockScreen">
+        <h1 style="margin-bottom:10px;">🔒 系统已锁定</h1>
+        <p style="opacity:0.7; font-size:12px;">默认密码: 123456</p>
+        <input type="password" id="unlockPass" placeholder="输入密码" onkeyup="if(event.key==='Enter')unlockSystem()">
+        <button onclick="unlockSystem()">解锁进入</button>
+        <div id="loginMsg" style="color:red; margin-top:10px; height:20px;"></div>
+    </div>
+
+    <div class="header">
+        <div class="class-selector" onclick="openClassManager()">
+            <span style="font-size:20px">🏫</span>
+            <div><div style="font-size:10px; opacity:0.8">当前班级</div><div id="currentClassName" style="font-weight:bold">加载中...</div></div>
+            <span>▼</span>
+        </div>
+        <div class="stats-badge" id="class-stats">统计...</div>
+    </div>
+
+    <div class="toolbar">
+        <div class="search-box"><span>🔍</span><input type="text" id="searchInput" placeholder="搜索姓名..." oninput="handleSearch()"></div>
+        <div class="divider"></div>
+        <button class="btn btn-blue" onclick="openAddModal()">➕ 新生/选宠</button>
+        <button class="btn btn-pk" style="background:var(--danger)" onclick="openPKModal()">⚔️ 竞技场</button>
+        <button class="btn btn-orange" onclick="openShopModal()">🎁 商店</button>
+        <button class="btn btn-purple" onclick="openRankModal()">🏆 排行</button>
+        <button class="btn btn-grey" onclick="showHistory()">📜 历史记录</button>
+        <div class="divider"></div>
+        <button class="btn btn-dark" id="batchBtn" onclick="toggleBatchMode()">⚡ 批量模式</button>
+        <button class="btn btn-teal" onclick="openSettings()">⚙️ 设置</button>
+        <button class="btn btn-grey" id="saveBtn" onclick="saveData(true)">💾 保存</button>
+        <button class="btn btn-blue" style="background:#555" onclick="openImportModal()">📂 导入</button>
+    </div>
+
+    <div class="grid" id="app"></div>
+
+    <!-- 批量操作栏 -->
+    <div class="batch-bar" id="batchBar">
+        <div class="batch-header">
+            <span style="font-weight:bold; color:var(--primary); font-size:16px;">已选中 <span id="selCount">0</span> 人</span>
+            <div>
+                <button class="btn btn-grey" style="padding:4px 8px;font-size:11px;" onclick="selectAll()">全选</button>
+                <button class="btn btn-grey" style="padding:4px 8px;font-size:11px;" onclick="selectedIds.clear();render()">清空</button>
+                <button class="btn btn-dark" style="padding:4px 8px;font-size:11px;margin-left:10px;" onclick="toggleBatchMode()">退出批量</button>
+            </div>
+        </div>
+        <div style="font-size:12px; color:#666; margin-bottom:5px;">👇 点击下方按钮，立即对选中学生执行操作：</div>
+        <div class="batch-actions-scroll" id="batchQuickActions">
+            <!-- JS 动态填充 -->
+        </div>
+    </div>
+
+    <!-- 历史记录弹窗 -->
+    <div class="modal" id="historyModal">
+        <div class="modal-content">
+            <h3>📜 操作记录与撤回</h3>
+            <div id="historyList" style="max-height:400px; overflow-y:auto; margin-top:10px;"></div>
+            <button class="btn btn-grey" style="width:100%; margin-top:10px;" onclick="document.getElementById('historyModal').style.display='none'">关闭</button>
+        </div>
+    </div>
+
+    <!-- 新生弹窗 -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <h3 id="addModalTitle">🎓 新生报到</h3>
+            <div id="nameInputGroup"><p style="color:#666; font-size:13px;">1. 请输入学生姓名：</p><input type="text" id="newStudentName" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; font-size:16px; margin-bottom:15px;" placeholder="姓名"></div>
+            <p style="color:#666; font-size:13px;">2. 选择初始属性 (随机获得该系灵宠)：</p><div class="type-grid" id="typeSelector"></div><button class="btn btn-grey" style="width:100%; margin-top:15px;" onclick="document.getElementById('addModal').style.display='none'">取消</button>
+        </div>
+    </div>
+
+    <!-- 其他弹窗 -->
+    <div class="modal" id="inputModal"><div class="modal-content"><h3>📂 批量导入名单</h3><textarea id="impTxt" style="width:100%;height:150px;margin-bottom:10px;padding:10px;" placeholder="张三, 李四, 王五"></textarea><p style="font-size:12px;color:#666">选择分配方式：</p><div style="display:flex; gap:10px; margin-bottom:15px;"><button class="btn btn-blue" onclick="importMode='random'; execImp()" style="flex:1">🎲 全员随机属性</button><button class="btn btn-teal" onclick="document.getElementById('importTypeSel').style.display='block'" style="flex:1">🎨 指定统一属性</button></div><div id="importTypeSel" style="display:none; border-top:1px solid #eee; padding-top:10px;"><p style="font-size:12px;">请点击下方属性进行导入：</p><div class="type-grid" id="importTypeGrid"></div></div><button class="btn btn-grey" style="width:100%; margin-top:10px;" onclick="document.getElementById('inputModal').style.display='none'">取消</button></div></div>
+    <div class="modal" id="settingsModal"><div class="modal-content"><h3>⚙️ 系统设置</h3><div style="height:400px; overflow-y:auto; padding-right:5px;"><div class="setting-group" style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:10px;"><h4>🔒 修改密码</h4><div class="setting-row"><input id="newSysPass" placeholder="新密码" class="setting-input" style="width:120px"><button class="btn btn-orange" onclick="changePassword()">修改</button></div></div><div class="setting-group"><h4>➕ 加分规则</h4><div id="posRulesList"></div><div class="setting-row"><input id="newPosName" placeholder="名称" class="setting-input" style="width:100px"><input id="newPosVal" type="number" placeholder="分" class="setting-input"><button class="btn btn-blue" onclick="addRule('pos')">添加</button></div></div><div class="setting-group" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;"><h4>➖ 扣分规则</h4><div id="negRulesList"></div><div class="setting-row"><input id="newNegName" placeholder="名称" class="setting-input" style="width:100px"><input id="newNegVal" type="number" placeholder="分" class="setting-input"><button class="btn btn-blue" onclick="addRule('neg')">添加</button></div></div><div class="setting-group" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;"><h4>🛍️ 商店配置</h4><div id="shopSettingsList"></div><div class="setting-row"><input id="newShopName" placeholder="奖品名" class="setting-input" style="width:100px"><input id="newShopCost" type="number" placeholder="分" class="setting-input"><input id="newShopIcon" placeholder="🎁" class="setting-input" style="width:40px"><button class="btn btn-orange" onclick="addShopItem()">添加</button></div></div><div class="setting-group" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;"><h4>🏆 升级经验阈值</h4><div id="levelsList" style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;"></div></div></div><button class="btn btn-grey" style="width:100%; margin-top:10px;" onclick="closeSettings()">保存并关闭</button></div></div>
+    <div class="modal" id="classModal"><div class="modal-content"><h3>🏫 班级管理</h3><div id="classList" style="margin-bottom:15px; max-height:200px; overflow-y:auto;"></div><div class="setting-row"><input type="text" id="newClassName" placeholder="新班级名称" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px;"><button class="btn btn-blue" onclick="addNewClass()">创建</button></div><button class="btn btn-grey" style="width:100%" onclick="document.getElementById('classModal').style.display='none'">关闭</button></div></div>
+    <div class="modal" id="evoModal" onclick="this.style.display='none'"><div class="modal-content" style="text-align:center;border-top:5px solid var(--secondary);"><h2 id="evoTitle" style="color:#f1c40f"></h2><p><b id="evoName"></b></p><img src="" id="evoImg" style="width:200px;height:200px;object-fit:contain;margin:10px 0;"><h3 id="evoStage" style="color:#555"></h3><button class="btn btn-blue" style="width:100%">棒！</button></div></div>
+    <div class="modal" id="shopModal"><div class="modal-content"><h3>🎁 兑换</h3><div id="shopGrid" class="shop-grid"></div><button class="btn btn-grey" style="width:100%;margin-top:10px" onclick="document.getElementById('shopModal').style.display='none'">关闭</button></div></div>
+    <div class="modal" id="rankModal"><div class="modal-content"><h3>🏆 排行榜</h3><table class="rank-table"><tbody id="rankListBody"></tbody></table><button class="btn btn-grey" style="width:100%;margin-top:10px" onclick="document.getElementById('rankModal').style.display='none'">关闭</button></div></div>
+    <div class="modal" id="studentSelectModal"><div class="modal-content"><h3>选择学生</h3><div id="studentSelectList" style="max-height:300px;overflow-y:auto"></div><button class="btn btn-grey" style="width:100%;margin-top:10px" onclick="document.getElementById('studentSelectModal').style.display='none'">取消</button></div></div>
+    <div class="modal" id="pkModal"><div class="modal-content pk-modal" style="color:white;background:linear-gradient(135deg,#2c3e50,#000);text-align:center"><h2>⚔️ PK 竞技场</h2><div id="pkContent"></div><button class="btn btn-grey" style="margin-top:15px;" onclick="document.getElementById('pkModal').style.display='none'">关闭</button></div></div>
+
+<script>
+    // === 0. 云端 API 凭证配置 ===
+    const CLOUD_BIN_ID = "6a5f73aeda38895dfe7af26f"; 
+    const CLOUD_API_KEY = "$2a$10$paqs8f3FcsAsTVqmpPl8j.7V9Hm0FLkqsUILaF1aKLYnYeJSkQ1TG";
+    const CLOUD_URL = `https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}`;
+
+    // === 1. 数据配置 ===
+    const EGG_SVG = "data:image/svg+xml,%3Csvg width='200' height='240' viewBox='0 0 100 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 10 C 20 10, 10 40, 10 70 C 10 100, 30 115, 50 115 C 70 115, 90 100, 90 70 C 90 40, 80 10, 50 10 Z' fill='%2366CDAA'/%3E%3Ccircle cx='35' cy='50' r='6' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='70' cy='60' r='8' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='45' cy='85' r='10' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='25' cy='75' r='4' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='65' cy='35' r='5' fill='%232E8B57' opacity='0.6'/%3E%3C/svg%3E";
+
+    const POKEDEX_DB = {
+        grass: [{ids:[1,2,3],names:["妙蛙种子","妙蛙草","妙蛙花"]},{ids:[152,153,154],names:["菊草叶","月桂叶","大竺葵"]},{ids:[252,253,254],names:["木守宫","森林蜥蜴","蜥蜴王"]}],
+        fire: [{ids:[4,5,6],names:["小火龙","火恐龙","喷火龙"]},{ids:[155,156,157],names:["火球鼠","火岩鼠","火暴兽"]},{ids:[255,256,257],names:["火稚鸡","力壮鸡","火焰鸡"]}],
+        water: [{ids:[7,8,9],names:["杰尼龟","卡咪龟","水箭龟"]},{ids:[158,159,160],names:["小锯鳄","蓝鳄","大力鳄"]},{ids:[258,259,260],names:["水跃鱼","沼跃鱼","巨沼怪"]}],
+        bug: [{ids:[10,11,12],names:["绿毛虫","铁甲蛹","巴大蝶"]},{ids:[13,14,15],names:["独角虫","铁壳昆","大针蜂"]},{ids:[165,166,469],names:["芭瓢虫","安瓢虫","远古巨廷"]}],
+        normal: [{ids:[16,17,18],names:["波波","比比鸟","大比鸟"]},{ids:[396,397,398],names:["姆克儿","姆克鸟","姆克鹰"]},{ids:[263,264,264],names:["蛇纹熊","直冲熊","堵拦熊"]}],
+        poison: [{ids:[32,33,34],names:["尼多朗","尼多力诺","尼多王"]},{ids:[29,30,31],names:["尼多兰","尼多娜","尼多后"]},{ids:[41,42,169],names:["超音蝠","大嘴蝠","叉字蝠"]}],
+        electric: [{ids:[179,180,181],names:["咩利羊","绵绵","电龙"]},{ids:[403,404,405],names:["小猫怪","勒克猫","伦琴猫"]},{ids:[239,125,466],names:["电击怪","电击兽","电击魔兽"]}],
+        ground: [{ids:[111,112,464],names:["独角犀牛","钻角犀兽","超甲狂犀"]},{ids:[220,221,473],names:["小山猪","长毛猪","象牙猪"]},{ids:[529,530,531],names:["螺钉地鼠","龙头地鼠","龙头地鼠"]}],
+        fairy: [{ids:[173,35,36],names:["皮宝宝","皮皮","皮可西"]},{ids:[175,176,468],names:["波克比","波克基古","波克基斯"]},{ids:[298,183,184],names:["露力丽","玛力露","玛力露丽"]}],
+        fighting: [{ids:[66,67,68],names:["腕力","豪力","怪力"]},{ids:[532,533,534],names:["搬运小匠","铁骨土人","修缮老头"]},{ids:[236,237,237],names:["无畏小子","战舞郎","飞腿郎"]}],
+        psychic: [{ids:[63,64,65],names:["凯西","勇基拉","胡地"]},{ids:[280,281,475],names:["拉鲁拉丝","奇鲁莉安","艾路雷朵"]},{ids:[574,575,576],names:["哥德宝宝","哥德小童","哥德小姐"]}],
+        rock: [{ids:[74,75,76],names:["小拳石","隆隆石","隆隆岩"]},{ids:[524,525,526],names:["石丸子","地幔岩","庞岩怪"]},{ids:[408,409,409],names:["头盖龙","战槌龙","战槌龙"]}],
+        ghost: [{ids:[92,93,94],names:["鬼斯","鬼斯通","耿鬼"]},{ids:[355,356,477],names:["夜巡灵","彷徨夜灵","黑夜魔灵"]},{ids:[607,608,609],names:["烛光灵","灯火幽灵","水晶灯火灵"]}],
+        ice: [{ids:[363,364,365],names:["海豹球","海魔狮","帝牙海狮"]},{ids:[220,221,473],names:["小山猪","长毛猪","象牙猪"]},{ids:[582,583,584],names:["迷你冰","多多冰","双倍多多冰"]}],
+        dragon: [{ids:[147,148,149],names:["迷你龙","哈克龙","快龙"]},{ids:[371,372,373],names:["宝贝龙","甲壳龙","暴飞龙"]},{ids:[443,444,445],names:["圆陆鲨","尖牙陆鲨","烈咬陆鲨"]}],
+        steel: [{ids:[304,305,306],names:["可可多拉","可多拉","波士可多拉"]},{ids:[81,82,462],names:["小磁怪","三合一磁怪","自爆磁怪"]},{ids:[599,600,601],names:["齿轮儿","齿轮组","齿轮怪"]}]
+    };
+    
+    const TYPE_NAMES = { grass:"草系", fire:"火系", water:"水系", bug:"虫系", normal:"一般", poison:"毒系", electric:"电系", ground:"地面", fairy:"妖精", fighting:"格斗", psychic:"超能", rock:"岩石", ghost:"幽灵", ice:"冰系", dragon:"龙系", steel:"钢系" };
+    const TYPE_COLORS = { grass:"var(--c-grass)", fire:"var(--c-fire)", water:"var(--c-water)", bug:"var(--c-bug)", normal:"var(--c-normal)", poison:"var(--c-poison)", electric:"var(--c-electric)", ground:"var(--c-ground)", fairy:"var(--c-fairy)", fighting:"var(--c-fighting)", psychic:"var(--c-psychic)", rock:"var(--c-rock)", ghost:"var(--c-ghost)", ice:"var(--c-ice)", dragon:"var(--c-dragon)", steel:"var(--c-steel)" };
+
+    const DEFAULT_CONFIG = {
+        rules: { pos: [{l:"回答问题",v:2},{l:"作业优秀",v:2},{l:"帮助同学",v:2}], neg: [{l:"未交作业",v:-4},{l:"纪律差",v:-2}] },
+        levels: [0, 10, 30, 60, 100, 150, 210, 280, 360, 450],
+        shop: [{name:"免作业卡",cost:15,icon:"📝"}, {name:"零食券",cost:10,icon:"🍪"}]
+    };
+
+    let sysPassword = "123456";
+    let currentClassId = "class_default";
+    let classList = [{id:"class_default", name:"默认班级"}];
+    let classData = { students:[], rules:JSON.parse(JSON.stringify(DEFAULT_CONFIG.rules)), levels:[...DEFAULT_CONFIG.levels], shop:[...DEFAULT_CONFIG.shop], logs:[] }; 
+
+    let isBatchMode = false;
+    let selectedIds = new Set();
+    let searchText = "";
+    let importMode = 'random'; let importType = '';
+
+    // === 2. 登录与解锁 ===
+    function unlockSystem() {
+        const input = document.getElementById('unlockPass').value;
+        const storedPass = localStorage.getItem('poke_sys_pass') || "123456";
+        if(input === storedPass) {
+            document.getElementById('lockScreen').style.display = 'none';
+            init();
+        } else {
+            document.getElementById('loginMsg').innerText = "密码错误！";
+        }
+    }
+
+    function changePassword() {
+        const newP = document.getElementById('newSysPass').value;
+        if(newP && newP.length >= 4) {
+            localStorage.setItem('poke_sys_pass', newP);
+            sysPassword = newP;
+            alert("密码修改成功！下次登录请使用新密码。");
+        } else {
+            alert("密码长度至少4位");
+        }
+    }
+
+    // === 3. 初始化与云端同步 ===
+    async function init() {
+        const saveBtn = document.getElementById('saveBtn');
+        if(saveBtn) saveBtn.innerText = "☁️ 提取云端...";
+
+        try {
+            const res = await fetch(CLOUD_URL + "/latest", {
+                headers: { 'X-Master-Key': CLOUD_API_KEY }
+            });
+            if(res.ok) {
+                const result = await res.json();
+                const record = result.record;
+                if(record && record.classList) classList = record.classList;
+                if(record && record.currentClassId) currentClassId = record.currentClassId;
+                if(record && record.classDataMap && record.classDataMap[currentClassId]) {
+                    classData = record.classDataMap[currentClassId];
+                } else if(record && record.classData) {
+                    classData = record.classData;
+                }
+            }
+        } catch(e) {
+            console.log("使用本地缓存加载:", e);
+            const savedList = localStorage.getItem('poke_class_list');
+            if(savedList) classList = JSON.parse(savedList);
+            const savedId = localStorage.getItem('poke_current_class_id');
+            if(savedId && classList.find(c=>c.id===savedId)) currentClassId = savedId;
+            const savedData = localStorage.getItem(`poke_data_${currentClassId}`);
+            if(savedData) classData = JSON.parse(savedData);
+        }
+
+        if(!classData.rules) classData.rules = DEFAULT_CONFIG.rules;
+        if(!classData.levels) classData.levels = DEFAULT_CONFIG.levels;
+        if(!classData.shop) classData.shop = DEFAULT_CONFIG.shop;
+        if(!classData.students) classData.students = [];
+        if(!classData.logs) classData.logs = [];
+
+        if(saveBtn) saveBtn.innerText = "💾 保存";
+        updateHeader();
+        render();
+    }
+
+    async function saveData(alertMsg=false) {
+        const saveBtn = document.getElementById('saveBtn');
+        const origText = saveBtn ? saveBtn.innerText : "💾 保存";
+        if(saveBtn) saveBtn.innerText = "⏳ 保存中...";
+
+        localStorage.setItem(`poke_data_${currentClassId}`, JSON.stringify(classData));
+        localStorage.setItem('poke_class_list', JSON.stringify(classList));
+        localStorage.setItem('poke_current_class_id', currentClassId);
+
+        try {
+            const res = await fetch(CLOUD_URL, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': CLOUD_API_KEY
+                },
+                body: JSON.stringify({
+                    classList: classList,
+                    currentClassId: currentClassId,
+                    classData: classData
+                })
+            });
+            if(res.ok) {
+                if(saveBtn) {
+                    saveBtn.innerText = "✅ 已云保存";
+                    setTimeout(() => saveBtn.innerText = origText, 2000);
+                }
+                if(alertMsg) alert("✅ 数据已同步保存至云端！");
+            } else {
+                throw new Error("API Exception");
+            }
+        } catch(e) {
+            console.error(e);
+            if(saveBtn) saveBtn.innerText = origText;
+            if(alertMsg) alert("⚠️ 本地修改已存，但上传云端失败，请检查网络！");
+        }
+    }
+
+    function switchClass(id) {
+        currentClassId = id;
+        init();
+        document.getElementById('classModal').style.display = 'none';
+    }
+
+    // === 4. 辅助渲染计算 ===
+    function getLine(s) {
+        const lineIdx = s.lineIndex !== undefined ? s.lineIndex : 0;
+        const lines = POKEDEX_DB[s.type] || POKEDEX_DB.grass;
+        return lines[lineIdx % lines.length];
+    }
+
+    function getStageIdx(score) {
+        let lv=0; 
+        for(let i=0; i<classData.levels.length; i++) {
+            if(score >= classData.levels[i]) lv = i;
+        }
+        if(lv===0) return -1; 
+        if(lv>=7) return 2; 
+        if(lv>=4) return 1; 
+        return 0;
+    }
+
+    function getImgUrl(s) {
+        const idx = getStageIdx(s.score);
+        if(idx === -1) return EGG_SVG;
+        return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${getLine(s).ids[idx]}.png`;
+    }
+
+    function getTrueName(s) {
+        const idx = getStageIdx(s.score);
+        return idx === -1 ? "神秘精灵蛋" : getLine(s).names[idx];
+    }
+
+    function getStageInfo(score) {
+        let lv = classData.levels.findIndex(th => score < th) - 1;
+        if (lv === -2) lv = classData.levels.length - 1;
+        if (lv < 0) lv = 0;
+        const curBase = classData.levels[lv];
+        const nextBase = classData.levels[lv+1] || "MAX";
+        let pct = 100;
+        if (nextBase !== "MAX") pct = Math.min(100, Math.max(0, ((score - curBase) / (nextBase - curBase)) * 100));
+        let stageName = lv>=7?"究极": (lv>=4?"进阶": (lv>=1?"初阶":"神秘的蛋"));
+        if(nextBase==="MAX") stageName="🏆 大师";
+        return { lv, pct, next: nextBase, stageName };
+    }
+
+    function updateHeader() {
+        const c = classList.find(x => x.id === currentClassId);
+        document.getElementById('currentClassName').innerText = c ? c.name : "默认班级";
+        const total = classData.students.reduce((a, b) => a + b.score, 0);
+        const avg = classData.students.length ? (total / classData.students.length).toFixed(1) : 0;
+        document.getElementById('class-stats').innerText = `人数: ${classData.students.length} | 总分: ${total} | 均分: ${avg}`;
+    }
+
+    // === 5. 主渲染逻辑 ===
+    function render() {
+        const grid = document.getElementById('app');
+        // 【已修复】修改 parseInt 为 Number 保留导入生成的浮点数ID精度
+        const expandedIds = !isBatchMode ? Array.from(document.querySelectorAll('.card.expanded')).map(el => Number(el.dataset.id)) : [];
+        grid.innerHTML = "";
+        
+        const filtered = classData.students.filter(s => s.name.includes(searchText));
+
+        filtered.forEach(s => {
+            const info = getStageInfo(s.score);
+            const isSel = selectedIds.has(s.id);
+            const typeName = TYPE_NAMES[s.type] || s.type;
+            const typeColor = TYPE_COLORS[s.type] || "#999";
+            
+            const card = document.createElement('div');
+            card.className = `card bg-${s.type} ${isSel?'selected':''} ${expandedIds.includes(s.id)?'expanded':''}`;
+            card.dataset.id = s.id;
+            if(isBatchMode) card.onclick = () => toggleSel(s.id);
+
+            const posBtns = classData.rules.pos.map(r => `<div class="rule-btn plus" onclick="modScore(${s.id}, ${r.v}, '${r.l}'); event.stopPropagation();">${r.l} +${r.v}</div>`).join('');
+            const negBtns = classData.rules.neg.map(r => `<div class="rule-btn minus" onclick="modScore(${s.id}, ${r.v}, '${r.l}'); event.stopPropagation();">${r.l} ${r.v}</div>`).join('');
+            const gradBtn = info.next === "MAX" && !isBatchMode ? `<button class="rule-btn graduate-btn" onclick="prestige(${s.id})">🎓 毕业转生</button>` : '';
+
+            const actionHtml = isBatchMode ? '' : `
+                <button class="action-toggle-btn" onclick="this.parentElement.classList.toggle('expanded'); event.stopPropagation()">⚡ 操作</button>
+                <div class="action-panel" onclick="event.stopPropagation()">
+                    <div class="btn-grid">${posBtns}</div><div style="height:5px"></div><div class="btn-grid">${negBtns}</div>
+                    ${gradBtn}
+                    <button class="rule-btn" style="width:100%;margin-top:5px;color:red" onclick="delStudent(${s.id})">删除学生</button>
+                </div>`;
+
+            card.innerHTML = `
+                <div class="check-mark">✅</div>
+                <div class="info-area">
+                    <span class="type-tag" style="background:${typeColor}">${typeName}</span> 
+                    <span class="student-name">${s.name}</span>
+                    <div><span class="true-name">${getTrueName(s)}</span></div>
+                </div>
+                <div class="pokemon-area">
+                    <img class="pokemon-img" src="${getImgUrl(s)}" alt="pokemon">
+                </div>
+                <div class="exp-container">
+                    <div class="exp-fill" style="width:${info.pct}%"></div>
+                </div>
+                <div class="score-row">
+                    <span>Lv.${info.lv} ${info.stageName}</span>
+                    <span>${s.score} 分</span>
+                </div>
+                ${actionHtml}
+            `;
+            grid.appendChild(card);
+        });
+
+        // 渲染批量快捷工具栏
+        const batchQuick = document.getElementById('batchQuickActions');
+        if(batchQuick) {
+            const posQuick = classData.rules.pos.map(r => `<button class="quick-btn pos" onclick="batchModScore(${r.v}, '${r.l}')">${r.l}<span>+${r.v}</span></button>`).join('');
+            const negQuick = classData.rules.neg.map(r => `<button class="quick-btn neg" onclick="batchModScore(${r.v}, '${r.l}')">${r.l}<span>${r.v}</span></button>`).join('');
+            batchQuick.innerHTML = posQuick + negQuick;
+        }
+
+        document.getElementById('selCount').innerText = selectedIds.size;
+        updateHeader();
+    }
+
+    // === 6. 分数修改与进化触发 ===
+    function modScore(id, val, reason) {
+        const s = classData.students.find(x => x.id === id);
+        if(!s) return;
+        const oldScore = s.score;
+        const oldStage = getStageIdx(oldScore);
+        s.score += val;
+        if(s.score < 0) s.score = 0;
+        const newStage = getStageIdx(s.score);
+
+        // 记录日志
+        classData.logs.unshift({
+            id: Date.now() + Math.random(),
+            studentId: s.id,
+            studentName: s.name,
+            val: val,
+            reason: reason,
+            time: new Date().toLocaleTimeString()
+        });
+
+        render();
+        saveData();
+
+        // 检测进化
+        if(newStage > oldStage && newStage >= 0) {
+            triggerEvoModal(s);
+        }
+    }
+
+    function triggerEvoModal(s) {
+        document.getElementById('evoTitle').innerText = "🎉 恭喜进化啦！";
+        document.getElementById('evoName').innerText = `${s.name} 的 ${getTrueName(s)}`;
+        document.getElementById('evoImg').src = getImgUrl(s);
+        document.getElementById('evoStage').innerText = `升级至：${getStageInfo(s.score).stageName}`;
+        document.getElementById('evoModal').style.display = 'flex';
+    }
+
+    // === 7. 批量模式 ===
+    function toggleBatchMode() {
+        isBatchMode = !isBatchMode;
+        document.body.classList.toggle('batch-mode', isBatchMode);
+        document.getElementById('batchBar').classList.toggle('show', isBatchMode);
+        selectedIds.clear();
+        render();
+    }
+
+    function toggleSel(id) {
+        if(selectedIds.has(id)) selectedIds.delete(id);
+        else selectedIds.add(id);
+        render();
+    }
+
+    function selectAll() {
+        classData.students.forEach(s => selectedIds.add(s.id));
+        render();
+    }
+
+    function batchModScore(val, reason) {
+        if(selectedIds.size === 0) return alert("请先选择学生！");
+        selectedIds.forEach(id => modScore(id, val, reason));
+        alert(`已成功为 ${selectedIds.size} 名学生批量操作！`);
+    }
+
+    function handleSearch() {
+        searchText = document.getElementById('searchInput').value.trim();
+        render();
+    }
+
+    // === 8. 新生 & 导入管理 ===
+    function openAddModal() {
+        const types = Object.keys(POKEDEX_DB);
+        const typeGrid = document.getElementById('typeSelector');
+        typeGrid.innerHTML = types.map(t => `<div class="type-opt bg-c-${t}" onclick="addStudent('${t}')">${TYPE_NAMES[t]}</div>`).join('');
+        document.getElementById('addModal').style.display = 'flex';
+    }
+
+    function addStudent(type) {
+        const name = document.getElementById('newStudentName').value.trim();
+        if(!name) return alert("请输入学生姓名！");
+        
+        const lines = POKEDEX_DB[type];
+        const lineIndex = Math.floor(Math.random() * lines.length);
+
+        classData.students.push({
+            id: Date.now() + Math.random(),
+            name: name,
+            score: 0,
+            type: type,
+            lineIndex: lineIndex
+        });
+
+        document.getElementById('newStudentName').value = "";
+        document.getElementById('addModal').style.display = 'none';
+        render();
+        saveData();
+    }
+
+    function delStudent(id) {
+        if(confirm("确定删除该学生吗？")) {
+            classData.students = classData.students.filter(s => s.id !== id);
+            render();
+            saveData();
+        }
+    }
+
+    function prestige(id) {
+        const s = classData.students.find(x => x.id === id);
+        if(!s) return;
+        if(confirm(`确定让 ${s.name} 毕业转生吗？其积分将重置，并随机获得新系灵宠！`)) {
+            const types = Object.keys(POKEDEX_DB);
+            s.type = types[Math.floor(Math.random() * types.length)];
+            s.lineIndex = Math.floor(Math.random() * POKEDEX_DB[s.type].length);
+            s.score = 0;
+            render();
+            saveData();
+            alert("转生成功！");
+        }
+    }
+
+    // === 9. 历史记录与撤回 ===
+    function showHistory() {
+        const container = document.getElementById('historyList');
+        if(!classData.logs || classData.logs.length === 0) {
+            container.innerHTML = "<p style='color:#999;text-align:center;'>暂无操作记录</p>";
+        } else {
+            container.innerHTML = classData.logs.map(log => `
+                <div class="log-item">
+                    <div class="log-info">
+                        <b>${log.studentName}</b> ${log.reason} 
+                        <span style="color:${log.val>=0?'green':'red'};font-weight:bold">${log.val>=0?'+'+log.val:log.val}</span>
+                        <div style="font-size:10px;color:#999">${log.time}</div>
+                    </div>
+                    <button class="log-undo-btn" onclick="undoLog(${log.id})">↩️ 撤回</button>
+                </div>
+            `).join('');
+        }
+        document.getElementById('historyModal').style.display = 'flex';
+    }
+
+    function undoLog(logId) {
+        const index = classData.logs.findIndex(l => l.id === logId);
+        if(index === -1) return;
+        const log = classData.logs[index];
+        const s = classData.students.find(x => x.id === log.studentId);
+        if(s) {
+            s.score -= log.val;
+            if(s.score < 0) s.score = 0;
+        }
+        classData.logs.splice(index, 1);
+        render();
+        saveData();
+        showHistory();
+    }
+
+    // === 10. 弹窗功能集合 (PK, 商店, 排行, 设置, 班级) ===
+    function openPKModal() {
+        if(classData.students.length < 2) return alert("至少需要2名学生才能开始竞技PK！");
+        
+        // 生成学生选择列表
+        const studentOptions = classData.students.map(s => 
+            `<option value="${s.id}">${s.name} (Lv.${getStageInfo(s.score).lv} ${TYPE_NAMES[s.type]})</option>`
+        ).join('');
+        
+        document.getElementById('pkContent').innerHTML = `
+            <div style="text-align:left; padding:10px;">
+                <div style="display:flex; gap:10px; margin-bottom:15px; align-items:flex-end;">
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:#aaa; display:block; margin-bottom:5px;">挑战者 A</label>
+                        <select id="pkStudentA" style="width:100%; padding:8px; border-radius:6px; border:1px solid #555; background:#1a1a2e; color:white;" onchange="updatePKPreview()">${studentOptions}</select>
+                    </div>
+                    <div style="font-size:20px; color:#f1c40f; font-weight:bold;">VS</div>
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:#aaa; display:block; margin-bottom:5px;">挑战者 B</label>
+                        <select id="pkStudentB" style="width:100%; padding:8px; border-radius:6px; border:1px solid #555; background:#1a1a2e; color:white;" onchange="updatePKPreview()">${studentOptions}</select>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:11px; color:#aaa; display:block; margin-bottom:8px;">🏆 选择胜者</label>
+                    <div style="display:flex; gap:8px;">
+                        <button id="pkBtnA" class="pk-winner-btn" style="flex:1; padding:10px; border:2px solid #444; border-radius:8px; background:#1a1a2e; color:#ccc; cursor:pointer; font-size:13px;" onclick="selectPKWinner('a')">A 获胜</button>
+                        <button id="pkBtnB" class="pk-winner-btn" style="flex:1; padding:10px; border:2px solid #444; border-radius:8px; background:#1a1a2e; color:#ccc; cursor:pointer; font-size:13px;" onclick="selectPKWinner('b')">B 获胜</button>
+                        <button id="pkBtnDraw" class="pk-winner-btn" style="flex:1; padding:10px; border:2px solid #444; border-radius:8px; background:#1a1a2e; color:#ccc; cursor:pointer; font-size:13px;" onclick="selectPKWinner('draw')">平局</button>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                    <div>
+                        <label style="font-size:11px; color:#aaa; display:block; margin-bottom:5px;">获胜加分</label>
+                        <input type="number" id="pkWinScore" value="2" style="width:100%; padding:8px; border-radius:6px; border:1px solid #555; background:#1a1a2e; color:white; text-align:center;" oninput="updatePKPreview()">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:#aaa; display:block; margin-bottom:5px;">失败扣分</label>
+                        <input type="number" id="pkLoseScore" value="0" style="width:100%; padding:8px; border-radius:6px; border:1px solid #555; background:#1a1a2e; color:white; text-align:center;" oninput="updatePKPreview()">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:#aaa; display:block; margin-bottom:5px;">平局加分</label>
+                        <input type="number" id="pkDrawWinScore" value="1" style="width:100%; padding:8px; border-radius:6px; border:1px solid #555; background:#1a1a2e; color:white; text-align:center;" oninput="updatePKPreview()">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:#aaa; display:block; margin-bottom:5px;">平局扣分</label>
+                        <input type="number" id="pkDrawLoseScore" value="0" style="width:100%; padding:8px; border-radius:6px; border:1px solid #555; background:#1a1a2e; color:white; text-align:center;" oninput="updatePKPreview()">
+                    </div>
+                </div>
+                
+                <div id="pkPreview" style="background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; font-size:13px; min-height:40px; color:#aaa;">
+                    请选择对战双方并判定胜负结果...
+                </div>
+                
+                <button id="pkConfirmBtn" class="btn" style="width:100%; margin-top:15px; background:linear-gradient(45deg, #f1c40f, #e67e22); color:#000; font-weight:bold; opacity:0.5; cursor:not-allowed;" disabled onclick="executePK()">确认对战</button>
+            </div>
+        `;
+        
+        window.pkWinner = null;
+        document.getElementById('pkModal').style.display = 'flex';
+        updatePKPreview(); // 初始调用一次预防默认相同
+    }
+
+    function selectPKWinner(winner) {
+        window.pkWinner = winner;
+        
+        // 重置按钮样式
+        ['pkBtnA', 'pkBtnB', 'pkBtnDraw'].forEach(id => {
+            const btn = document.getElementById(id);
+            if(btn) {
+                btn.style.background = '#1a1a2e';
+                btn.style.borderColor = '#444';
+                btn.style.color = '#ccc';
+            }
+        });
+        
+        // 高亮选中
+        const activeMap = { 'a': 'pkBtnA', 'b': 'pkBtnB', 'draw': 'pkBtnDraw' };
+        const activeBtn = document.getElementById(activeMap[winner]);
+        if(activeBtn) {
+            activeBtn.style.background = '#3B4CCA';
+            activeBtn.style.borderColor = '#3B4CCA';
+            activeBtn.style.color = 'white';
+        }
+        
+        updatePKPreview();
+    }
+
+    function updatePKPreview() {
+        const pkStudentA = document.getElementById('pkStudentA');
+        const pkStudentB = document.getElementById('pkStudentB');
+        if(!pkStudentA || !pkStudentB) return;
+
+        // 【已修复】修改 parseInt 为 Number 保留导入生成的浮点数ID精度
+        const aId = Number(pkStudentA.value);
+        const bId = Number(pkStudentB.value);
+        const preview = document.getElementById('pkPreview');
+        const confirmBtn = document.getElementById('pkConfirmBtn');
+        
+        if (aId === bId) {
+            preview.innerHTML = '<span style="color:#F56C6C">❌ 不能选择自己和自己对战！</span>';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.5';
+            confirmBtn.style.cursor = 'not-allowed';
+            return;
+        }
+        
+        const a = classData.students.find(s => s.id === aId);
+        const b = classData.students.find(s => s.id === bId);
+        const winScore = parseInt(document.getElementById('pkWinScore').value) || 0;
+        const loseScore = parseInt(document.getElementById('pkLoseScore').value) || 0;
+        const drawWinScore = parseInt(document.getElementById('pkDrawWinScore').value) || 0;
+        const drawLoseScore = parseInt(document.getElementById('pkDrawLoseScore').value) || 0;
+        
+        let html = `<div style="display:flex; justify-content:space-around; margin-bottom:10px;">
+            <div style="text-align:center;"><img src="${getImgUrl(a)}" style="width:60px; height:60px; object-fit:contain;"><br><b>${a.name}</b></div>
+            <div style="font-size:24px; color:#f1c40f; display:flex; align-items:center;">VS</div>
+            <div style="text-align:center;"><img src="${getImgUrl(b)}" style="width:60px; height:60px; object-fit:contain;"><br><b>${b.name}</b></div>
+        </div>`;
+        
+        if (!window.pkWinner) {
+            html += '<div style="text-align:center; color:#999;">请点击上方按钮选择胜负结果...</div>';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.5';
+            confirmBtn.style.cursor = 'not-allowed';
+        } else if (window.pkWinner === 'draw') {
+            html += `<div style="text-align:center; color:#e67e22;">🤝 平局<br>双方各 <b>${drawWinScore >= 0 ? '+' : ''}${drawWinScore}</b> 分 / <b>${drawLoseScore >= 0 ? '+' : ''}${drawLoseScore}</b> 分</div>`;
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.cursor = 'pointer';
+        } else {
+            const winner = window.pkWinner === 'a' ? a : b;
+            const loser = window.pkWinner === 'a' ? b : a;
+            html += `<div style="text-align:center;">
+                <div style="color:#67C23A; font-size:16px; margin-bottom:5px;">🏆 胜者: ${winner.name} <b>+${winScore}</b> 分</div>
+                <div style="color:#F56C6C; font-size:14px;">💔 败者: ${loser.name} <b>${loseScore >= 0 ? '+' : ''}${loseScore}</b> 分</div>
+            </div>`;
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.cursor = 'pointer';
+        }
+        
+        preview.innerHTML = html;
+    }
+
+    function executePK() {
+        // 【已修复】修改 parseInt 为 Number 保留导入生成的浮点数ID精度
+        const aId = Number(document.getElementById('pkStudentA').value);
+        const bId = Number(document.getElementById('pkStudentB').value);
+        const winScore = parseInt(document.getElementById('pkWinScore').value) || 0;
+        const loseScore = parseInt(document.getElementById('pkLoseScore').value) || 0;
+        const drawWinScore = parseInt(document.getElementById('pkDrawWinScore').value) || 0;
+        const drawLoseScore = parseInt(document.getElementById('pkDrawLoseScore').value) || 0;
+        
+        const a = classData.students.find(s => s.id === aId);
+        const b = classData.students.find(s => s.id === bId);
+        
+        if (window.pkWinner === 'draw') {
+            modScore(a.id, drawWinScore, "PK竞技平局");
+            modScore(b.id, drawWinScore, "PK竞技平局");
+            if (drawLoseScore !== 0) {
+                modScore(a.id, drawLoseScore, "PK竞技平局调整");
+                modScore(b.id, drawLoseScore, "PK竞技平局调整");
+            }
+            alert(`🤝 ${a.name} 与 ${b.name} 平局！`);
+        } else {
+            const winner = window.pkWinner === 'a' ? a : b;
+            const loser = window.pkWinner === 'a' ? b : a;
+            modScore(winner.id, winScore, "PK竞技获胜");
+            if (loseScore !== 0) {
+                modScore(loser.id, loseScore, "PK竞技失败");
+            }
+            alert(`🎉 ${winner.name} 击败 ${loser.name}！`);
+        }
+        
+        document.getElementById('pkModal').style.display = 'none';
+    }
+
+    function openShopModal() {
+        const grid = document.getElementById('shopGrid');
+        grid.innerHTML = classData.shop.map(item => `
+            <div class="shop-item">
+                <div style="font-size:30px">${item.icon}</div>
+                <b>${item.name}</b>
+                <div style="color:var(--orange); font-size:12px; margin:5px 0;">${item.cost} 分</div>
+                <button class="btn btn-orange" style="width:100%;font-size:11px;" onclick="redeemItem('${item.name}', ${item.cost})">兑换</button>
+            </div>
+        `).join('');
+        document.getElementById('shopModal').style.display = 'flex';
+    }
+
+    function redeemItem(name, cost) {
+        const list = document.getElementById('studentSelectList');
+        list.innerHTML = classData.students.map(s => `
+            <div class="class-list-item">
+                <span>${s.name} (当前:${s.score}分)</span>
+                <button class="btn btn-blue" style="font-size:11px" onclick="execRedeem(${s.id}, '${name}', ${cost})">扣分兑换</button>
+            </div>
+        `).join('');
+        document.getElementById('studentSelectModal').style.display = 'flex';
+    }
+
+    function execRedeem(studentId, name, cost) {
+        const s = classData.students.find(x => x.id === studentId);
+        if(!s) return;
+        if(s.score < cost) return alert("积分不足！");
+        modScore(s.id, -cost, `兑换商品: ${name}`);
+        alert("兑换成功！");
+        document.getElementById('studentSelectModal').style.display = 'none';
+        document.getElementById('shopModal').style.display = 'none';
+    }
+
+    function openRankModal() {
+        const sorted = [...classData.students].sort((a,b) => b.score - a.score);
+        document.getElementById('rankListBody').innerHTML = sorted.map((s, index) => `
+            <tr>
+                <td><b>#${index+1}</b></td>
+                <td>${s.name}</td>
+                <td>${getTrueName(s)}</td>
+                <td style="font-weight:bold;color:var(--primary)">${s.score} 分</td>
+            </tr>
+        `).join('');
+        document.getElementById('rankModal').style.display = 'flex';
+    }
+
+    function openSettings() {
+        // 渲染规则与商店列表
+        document.getElementById('posRulesList').innerHTML = classData.rules.pos.map((r,i)=>`<div class="setting-row"><span>${r.l} (+${r.v})</span><button onclick="delRule('pos',${i})">❌</button></div>`).join('');
+        document.getElementById('negRulesList').innerHTML = classData.rules.neg.map((r,i)=>`<div class="setting-row"><span>${r.l} (${r.v})</span><button onclick="delRule('neg',${i})">❌</button></div>`).join('');
+        document.getElementById('shopSettingsList').innerHTML = classData.shop.map((s,i)=>`<div class="setting-row"><span>${s.icon} ${s.name} (${s.cost}分)</span><button onclick="delShopItem(${i})">❌</button></div>`).join('');
+        document.getElementById('levelsList').innerHTML = classData.levels.map((l,i)=>`<div>Lv.${i}: ${l}分</div>`).join('');
+        document.getElementById('settingsModal').style.display = 'flex';
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').style.display = 'none';
+        saveData();
+        render();
+    }
+
+    function addRule(type) {
+        const l = document.getElementById(type==='pos'?'newPosName':'newNegName').value.trim();
+        let v = parseInt(document.getElementById(type==='pos'?'newPosVal':'newNegVal').value);
+        if(!l || isNaN(v)) return alert("请输入完整规则名称与分值！");
+        if(type==='neg' && v>0) v = -v;
+        classData.rules[type].push({l, v});
+        openSettings();
+    }
+
+    function delRule(type, index) {
+        classData.rules[type].splice(index, 1);
+        openSettings();
+    }
+
+    function addShopItem() {
+        const name = document.getElementById('newShopName').value.trim();
+        const cost = parseInt(document.getElementById('newShopCost').value);
+        const icon = document.getElementById('newShopIcon').value.trim() || "🎁";
+        if(!name || isNaN(cost)) return alert("请输入商品名称和价格！");
+        classData.shop.push({name, cost, icon});
+        openSettings();
+    }
+
+    function delShopItem(index) {
+        classData.shop.splice(index, 1);
+        openSettings();
+    }
+
+    function openClassManager() {
+        document.getElementById('classList').innerHTML = classList.map(c => `
+            <div class="class-list-item">
+                <span>${c.name} ${c.id===currentClassId?'(当前)':''}</span>
+                <button class="btn btn-blue" style="font-size:11px;" onclick="switchClass('${c.id}')">切换</button>
+            </div>
+        `).join('');
+        document.getElementById('classModal').style.display = 'flex';
+    }
+
+    function addNewClass() {
+        const name = document.getElementById('newClassName').value.trim();
+        if(!name) return alert("请输入班级名称！");
+        const newId = "class_" + Date.now();
+        classList.push({id: newId, name: name});
+        switchClass(newId);
+    }
+
+    function openImportModal() {
+        const types = Object.keys(POKEDEX_DB);
+        document.getElementById('importTypeGrid').innerHTML = types.map(t => `<div class="type-opt bg-c-${t}" onclick="importType='${t}'; execImp()">${TYPE_NAMES[t]}</div>`).join('');
+        document.getElementById('inputModal').style.display = 'flex';
+    }
+
+    function execImp() {
+        const txt = document.getElementById('impTxt').value.trim();
+        if(!txt) return alert("请输入姓名列表！");
+        const names = txt.split(/[,，\n]/).map(n => n.trim()).filter(n => n.length > 0);
+        const types = Object.keys(POKEDEX_DB);
+
+        names.forEach(name => {
+            const type = importMode === 'random' ? types[Math.floor(Math.random()*types.length)] : importType;
+            classData.students.push({
+                id: Date.now() + Math.random(),
+                name: name,
+                score: 0,
+                type: type,
+                lineIndex: Math.floor(Math.random() * POKEDEX_DB[type].length)
+            });
+        });
+
+        document.getElementById('impTxt').value = "";
+        document.getElementById('inputModal').style.display = 'none';
+        render();
+        saveData();
+        alert(`成功导入 ${names.length} 名学生！`);
+    }
+</script>
+</body>
+</html>
