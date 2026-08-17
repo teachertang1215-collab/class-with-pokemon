@@ -216,7 +216,7 @@
     <div class="modal" id="inputModal"><div class="modal-content"><h3>📂 批量导入名单</h3><textarea id="impTxt" style="width:100%;height:150px;margin-bottom:10px;padding:10px;" placeholder="张三, 李四, 王五"></textarea><p style="font-size:12px;color:#666">选择分配方式：</p><div style="display:flex; gap:10px; margin-bottom:15px;"><button class="btn btn-blue" onclick="importMode='random'; execImp()" style="flex:1">🎲 全员随机属性</button><button class="btn btn-teal" onclick="document.getElementById('importTypeSel').style.display='block'" style="flex:1">🎨 指定统一属性</button></div><div id="importTypeSel" style="display:none; border-top:1px solid #eee; padding-top:10px;"><p style="font-size:12px;">请点击下方属性进行导入：</p><div class="type-grid" id="importTypeGrid"></div></div><button class="btn btn-grey" style="width:100%; margin-top:10px;" onclick="document.getElementById('inputModal').style.display='none'">取消</button></div></div>
     <div class="modal" id="settingsModal"><div class="modal-content"><h3>⚙️ 系统设置</h3><div style="height:400px; overflow-y:auto; padding-right:5px;"><div class="setting-group" style="background:#fff3e0; padding:10px; border-radius:5px; margin-bottom:10px;"><h4>🔒 修改密码</h4><div class="setting-row"><input id="newSysPass" placeholder="新密码" class="setting-input" style="width:120px"><button class="btn btn-orange" onclick="changePassword()">修改</button></div></div><div class="setting-group"><h4>➕ 加分规则</h4><div id="posRulesList"></div><div class="setting-row"><input id="newPosName" placeholder="名称" class="setting-input" style="width:100px"><input id="newPosVal" type="number" placeholder="分" class="setting-input"><button class="btn btn-blue" onclick="addRule('pos')">添加</button></div></div><div class="setting-group" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;"><h4>➖ 扣分规则</h4><div id="negRulesList"></div><div class="setting-row"><input id="newNegName" placeholder="名称" class="setting-input" style="width:100px"><input id="newNegVal" type="number" placeholder="分" class="setting-input"><button class="btn btn-blue" onclick="addRule('neg')">添加</button></div></div><div class="setting-group" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;"><h4>🛍️ 商店配置</h4><div id="shopSettingsList"></div><div class="setting-row"><input id="newShopName" placeholder="奖品名" class="setting-input" style="width:100px"><input id="newShopCost" type="number" placeholder="分" class="setting-input"><input id="newShopIcon" placeholder="🎁" class="setting-input" style="width:40px"><button class="btn btn-orange" onclick="addShopItem()">添加</button></div></div><div class="setting-group" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;"><h4>🏆 升级经验阈值</h4><div id="levelsList" style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;"></div></div></div><button class="btn btn-grey" style="width:100%; margin-top:10px;" onclick="closeSettings()">保存并关闭</button></div></div>
     <div class="modal" id="classModal"><div class="modal-content"><h3>🏫 班级管理</h3><div id="classList" style="margin-bottom:15px; max-height:200px; overflow-y:auto;"></div><div class="setting-row"><input type="text" id="newClassName" placeholder="新班级名称" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px;"><button class="btn btn-blue" onclick="addNewClass()">创建</button></div><button class="btn btn-grey" style="width:100%" onclick="document.getElementById('classModal').style.display='none'">关闭</button></div></div>
-    <div class="modal" id="evoModal" onclick="this.style.display='none'"><div class="modal-content" style="text-align:center;border-top:5px solid var(--secondary);"><h2 id="evoTitle" style="color:#f1c40f"></h2><p><b id="evoName"></b></p><img src="" id="evoImg" style="width:200px;height:200px;object-fit:contain;margin:10px 0;"><h3 id="evoStage" style="color:#555"></h3><button class="btn btn-blue" style="width:100%">棒！</button></div></div>
+    <div class="modal" id="evoModal" onclick="this.style.display='none'"><div class="modal-content" style="text-align:center;border-top:5px solid var(--secondary);"><h2 id="evoTitle" style="color:#f1c40f"></h2><p><b id="evoName"></b></p><img src="" id="evoImg" style="width:200px;height:200px;object-fit:contain;margin:10px 0;" onerror="this.onerror=null;this.src=EGG_SVG;"><h3 id="evoStage" style="color:#555"></h3><button class="btn btn-blue" style="width:100%">棒！</button></div></div>
     <div class="modal" id="shopModal"><div class="modal-content"><h3>🎁 兑换</h3><div id="shopGrid" class="shop-grid"></div><button class="btn btn-grey" style="width:100%;margin-top:10px" onclick="document.getElementById('shopModal').style.display='none'">关闭</button></div></div>
     <div class="modal" id="rankModal"><div class="modal-content"><h3>🏆 排行榜</h3><table class="rank-table"><tbody id="rankListBody"></tbody></table><button class="btn btn-grey" style="width:100%;margin-top:10px" onclick="document.getElementById('rankModal').style.display='none'">关闭</button></div></div>
     <div class="modal" id="studentSelectModal"><div class="modal-content"><h3>选择学生</h3><div id="studentSelectList" style="max-height:300px;overflow-y:auto"></div><button class="btn btn-grey" style="width:100%;margin-top:10px" onclick="document.getElementById('studentSelectModal').style.display='none'">取消</button></div></div>
@@ -415,7 +415,7 @@
     function getImgUrl(s) {
         const idx = getStageIdx(s.score);
         if(idx === -1) return EGG_SVG;
-        return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${getLine(s).ids[idx]}.png`;
+        return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/other/official-artwork/${getLine(s).ids[idx]}.png`;
     }
 
     function getTrueName(s) {
@@ -484,7 +484,7 @@
                     <div><span class="true-name">${getTrueName(s)}</span></div>
                 </div>
                 <div class="pokemon-area">
-                    <img class="pokemon-img" src="${getImgUrl(s)}" alt="pokemon">
+                    <img class="pokemon-img" src="${getImgUrl(s)}" alt="pokemon" onerror="this.onerror=null;this.src='${EGG_SVG}';">
                 </div>
                 <div class="exp-container">
                     <div class="exp-fill" style="width:${info.pct}%"></div>
@@ -780,9 +780,9 @@
         const drawLoseScore = parseInt(document.getElementById('pkDrawLoseScore').value) || 0;
         
         let html = `<div style="display:flex; justify-content:space-around; margin-bottom:10px;">
-            <div style="text-align:center;"><img src="${getImgUrl(a)}" style="width:60px; height:60px; object-fit:contain;"><br><b>${a.name}</b></div>
+            <div style="text-align:center;"><img src="${getImgUrl(a)}" style="width:60px; height:60px; object-fit:contain;" onerror="this.onerror=null;this.src='${EGG_SVG}';"><br><b>${a.name}</b></div>
             <div style="font-size:24px; color:#f1c40f; display:flex; align-items:center;">VS</div>
-            <div style="text-align:center;"><img src="${getImgUrl(b)}" style="width:60px; height:60px; object-fit:contain;"><br><b>${b.name}</b></div>
+            <div style="text-align:center;"><img src="${getImgUrl(b)}" style="width:60px; height:60px; object-fit:contain;" onerror="this.onerror=null;this.src='${EGG_SVG}';"><br><b>${b.name}</b></div>
         </div>`;
         
         if (!window.pkWinner) {
