@@ -373,12 +373,14 @@
                 }
                 if(alertMsg) alert("✅ 数据已同步保存至云端！");
             } else {
-                throw new Error("API Exception");
+                let detail = "";
+                try { detail = (await res.json()).message || ""; } catch(_) {}
+                throw new Error(`API Exception: HTTP ${res.status} ${detail}`);
             }
         } catch(e) {
             console.error(e);
             if(saveBtn) saveBtn.innerText = origText;
-            if(alertMsg) alert("⚠️ 本地修改已存，但上传云端失败，请检查网络！");
+            if(alertMsg) alert("⚠️ 本地修改已存，但上传云端失败：" + (e.message || e) + "\n（详情已打印在控制台 F12 Console）");
         }
     }
 
