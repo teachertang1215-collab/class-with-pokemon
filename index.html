@@ -226,7 +226,8 @@
     // === 0. 云端 API 凭证配置 ===
     const CLOUD_BIN_ID = "6a7f5797f5f4af5e29171d2f"; 
     const CLOUD_API_KEY = "$2a$10$6evjIBcIr2g16NLNZsAjX.f8Anc7wr57bwls1L80UH3.k0m3ESUj6";
-    const CLOUD_URL = `https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}`;
+    const CLOUD_URL = `https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}`; // "索引"记录：只存班级列表和每个班级对应的独立记录ID
+    const CLOUD_CREATE_URL = `https://api.jsonbin.io/v3/b`; // 用于给每个班级创建一个独立的云端记录
 
     // === 1. 数据配置 ===
     const EGG_SVG = "data:image/svg+xml,%3Csvg width='200' height='240' viewBox='0 0 100 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 10 C 20 10, 10 40, 10 70 C 10 100, 30 115, 50 115 C 70 115, 90 100, 90 70 C 90 40, 80 10, 50 10 Z' fill='%2366CDAA'/%3E%3Ccircle cx='35' cy='50' r='6' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='70' cy='60' r='8' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='45' cy='85' r='10' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='25' cy='75' r='4' fill='%232E8B57' opacity='0.6'/%3E%3Ccircle cx='65' cy='35' r='5' fill='%232E8B57' opacity='0.6'/%3E%3C/svg%3E";
@@ -267,6 +268,68 @@
 
     function freshClassData() {
         return { students:[], rules:JSON.parse(JSON.stringify(DEFAULT_CONFIG.rules)), levels:[...DEFAULT_CONFIG.levels], shop:[...DEFAULT_CONFIG.shop], logs:[] };
+    }
+
+    // 给一个班级创建专属的云端记录（每个班级独立存储，避免所有班级数据叠在一起超过免费额度100KB限制）
+    async function createClassBin(data) {
+        const res = await fetch(CLOUD_CREATE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': CLOUD_API_KEY,
+                'X-Bin-Private': 'true'
+            },
+            body: JSON.stringify(data)
+        });
+        if(!res.ok) {
+            let detail = ""; try { detail = (await res.json()).message || ""; } catch(_) {}
+            throw new Error(`创建班级记录失败: HTTP ${res.status} ${detail}`);
+        }
+        const result = await res.json();
+        return result.metadata.id;
+    }
+
+    async function fetchClassBin(binId) {
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+            headers: { 'X-Master-Key': CLOUD_API_KEY }
+        });
+        if(!res.ok) throw new Error(`读取班级数据失败: HTTP ${res.status}`);
+        const result = await res.json();
+        return result.record;
+    }
+
+    // "索引"记录只存班级名单和每个班级对应的独立记录ID，体积很小，不会随学生数据增长而超限
+    async function saveIndex() {
+        const res = await fetch(CLOUD_URL, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-Master-Key': CLOUD_API_KEY },
+            body: JSON.stringify({ classList: classList, currentClassId: currentClassId })
+        });
+        if(!res.ok) {
+            let detail = ""; try { detail = (await res.json()).message || ""; } catch(_) {}
+            throw new Error(`保存班级列表失败: HTTP ${res.status} ${detail}`);
+        }
+    }
+
+    async function loadCurrentClassData() {
+        const entry = classList.find(c => c.id === currentClassId);
+        if(entry && entry.binId) {
+            try {
+                classData = await fetchClassBin(entry.binId);
+            } catch(e) {
+                console.log("读取班级云端数据失败，使用本地缓存:", e);
+                classData = classDataMap[currentClassId] || freshClassData();
+            }
+        } else {
+            classData = classDataMap[currentClassId] || freshClassData();
+        }
+        classDataMap[currentClassId] = classData;
+
+        if(!classData.rules) classData.rules = DEFAULT_CONFIG.rules;
+        if(!classData.levels) classData.levels = DEFAULT_CONFIG.levels;
+        if(!classData.shop) classData.shop = DEFAULT_CONFIG.shop;
+        if(!classData.students) classData.students = [];
+        if(!classData.logs) classData.logs = [];
     }
 
     let isBatchMode = false;
@@ -311,11 +374,26 @@
                 const record = result.record;
                 if(record && record.classList) classList = record.classList;
                 if(record && record.currentClassId) currentClassId = record.currentClassId;
+
+                // 兼容迁移：旧版本把所有班级数据挤在一个大记录里（classDataMap字段），
+                // 容易超过免费额度100KB上限。这里把每个班级拆成独立的小记录。
                 if(record && record.classDataMap) {
-                    classDataMap = record.classDataMap;
-                } else if(record && record.classData) {
-                    // 兼容旧格式（只保存了单个班级数据的老版本）
-                    classDataMap = { [currentClassId]: record.classData };
+                    let migrated = false;
+                    for(const entry of classList) {
+                        if(!entry.binId) {
+                            const data = record.classDataMap[entry.id] || freshClassData();
+                            try {
+                                entry.binId = await createClassBin(data);
+                                classDataMap[entry.id] = data;
+                                migrated = true;
+                            } catch(mErr) {
+                                console.error("迁移班级数据失败:", entry.name, mErr);
+                            }
+                        }
+                    }
+                    if(migrated) {
+                        try { await saveIndex(); } catch(sErr) { console.error("保存迁移后的班级列表失败:", sErr); }
+                    }
                 }
             }
         } catch(e) {
@@ -328,14 +406,7 @@
             if(savedMap) classDataMap = JSON.parse(savedMap);
         }
 
-        if(!classDataMap[currentClassId]) classDataMap[currentClassId] = freshClassData();
-        classData = classDataMap[currentClassId];
-
-        if(!classData.rules) classData.rules = DEFAULT_CONFIG.rules;
-        if(!classData.levels) classData.levels = DEFAULT_CONFIG.levels;
-        if(!classData.shop) classData.shop = DEFAULT_CONFIG.shop;
-        if(!classData.students) classData.students = [];
-        if(!classData.logs) classData.logs = [];
+        await loadCurrentClassData();
 
         if(saveBtn) saveBtn.innerText = "💾 保存";
         updateHeader();
@@ -348,35 +419,35 @@
         if(saveBtn) saveBtn.innerText = "⏳ 保存中...";
 
         classDataMap[currentClassId] = classData;
-
         localStorage.setItem('poke_data_map', JSON.stringify(classDataMap));
         localStorage.setItem('poke_class_list', JSON.stringify(classList));
         localStorage.setItem('poke_current_class_id', currentClassId);
 
         try {
-            const res = await fetch(CLOUD_URL, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': CLOUD_API_KEY
-                },
-                body: JSON.stringify({
-                    classList: classList,
-                    currentClassId: currentClassId,
-                    classDataMap: classDataMap
-                })
-            });
-            if(res.ok) {
-                if(saveBtn) {
-                    saveBtn.innerText = "✅ 已云保存";
-                    setTimeout(() => saveBtn.innerText = origText, 2000);
-                }
-                if(alertMsg) alert("✅ 数据已同步保存至云端！");
+            const entry = classList.find(c => c.id === currentClassId);
+            if(!entry) throw new Error("找不到当前班级");
+
+            if(!entry.binId) {
+                // 这个班级第一次保存，先给它建一个专属的云端记录
+                entry.binId = await createClassBin(classData);
+                await saveIndex();
             } else {
-                let detail = "";
-                try { detail = (await res.json()).message || ""; } catch(_) {}
-                throw new Error(`API Exception: HTTP ${res.status} ${detail}`);
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${entry.binId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': CLOUD_API_KEY },
+                    body: JSON.stringify(classData)
+                });
+                if(!res.ok) {
+                    let detail = ""; try { detail = (await res.json()).message || ""; } catch(_) {}
+                    throw new Error(`HTTP ${res.status} ${detail}`);
+                }
             }
+
+            if(saveBtn) {
+                saveBtn.innerText = "✅ 已云保存";
+                setTimeout(() => saveBtn.innerText = origText, 2000);
+            }
+            if(alertMsg) alert("✅ 数据已同步保存至云端！");
         } catch(e) {
             console.error(e);
             if(saveBtn) saveBtn.innerText = origText;
@@ -384,16 +455,15 @@
         }
     }
 
-    function switchClass(id) {
+    async function switchClass(id) {
         classDataMap[currentClassId] = classData; // 先把当前正在编辑的班级数据存回内存
         currentClassId = id;
-        if(!classDataMap[currentClassId]) classDataMap[currentClassId] = freshClassData();
-        classData = classDataMap[currentClassId];
-        localStorage.setItem('poke_current_class_id', currentClassId);
         document.getElementById('classModal').style.display = 'none';
+        localStorage.setItem('poke_current_class_id', currentClassId);
+        await loadCurrentClassData();
         updateHeader();
         render();
-        saveData(); // 静默同步到云端，确保新的班级列表和当前选中状态被保存
+        saveIndex().catch(e => console.error("同步班级列表失败:", e)); // 只同步很小的班级名单，不用整份数据
     }
 
     // === 4. 辅助渲染计算 ===
@@ -945,13 +1015,14 @@
         document.getElementById('classModal').style.display = 'flex';
     }
 
-    function addNewClass() {
+    async function addNewClass() {
         const name = document.getElementById('newClassName').value.trim();
         if(!name) return alert("请输入班级名称！");
         const newId = "class_" + Date.now();
         classList.push({id: newId, name: name});
         document.getElementById('newClassName').value = '';
-        switchClass(newId);
+        classDataMap[newId] = freshClassData();
+        await switchClass(newId);
     }
 
     function openImportModal() {
